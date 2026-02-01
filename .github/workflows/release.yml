@@ -1,0 +1,152 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Release
+        run: |
+          swift build -c release
+
+      - name: Create App Bundle
+        run: |
+          # Create app bundle structure
+          APP_NAME="NotchTerm"
+          APP_BUNDLE="$APP_NAME.app"
+
+          mkdir -p "$APP_BUNDLE/Contents/MacOS"
+          mkdir -p "$APP_BUNDLE/Contents/Resources"
+
+          # Copy executable
+          cp .build/release/NotchTerm "$APP_BUNDLE/Contents/MacOS/"
+
+          # Copy app icon if it exists
+          if [ -d "Resources/Assets.xcassets/AppIcon.appiconset" ]; then
+            # Find the largest icon
+            ICON=$(ls -S Resources/Assets.xcassets/AppIcon.appiconset/*.png 2>/dev/null | head -1)
+            if [ -n "$ICON" ]; then
+              cp "$ICON" "$APP_BUNDLE/Contents/Resources/AppIcon.png"
+            fi
+          fi
+
+          # Create Info.plist
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>NotchTerm</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.notchterm.app</string>
+              <key>CFBundleName</key>
+              <string>NotchTerm</string>
+              <key>CFBundleDisplayName</key>
+              <string>NotchTerm</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>12.0</string>
+              <key>LSUIElement</key>
+              <true/>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSAppleEventsUsageDescription</key>
+              <string>NotchTerm needs to control terminal applications.</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Create DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_NAME="NotchTerm-${VERSION}.dmg"
+
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg_contents
+          cp -r NotchTerm.app dmg_contents/
+
+          # Create a symlink to Applications
+          ln -s /Applications dmg_contents/Applications
+
+          # Create DMG
+          hdiutil create -volname "NotchTerm" \
+            -srcfolder dmg_contents \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+
+      - name: Create ZIP Archive
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP_NAME="NotchTerm-${VERSION}.zip"
+
+          zip -r "$ZIP_NAME" NotchTerm.app
+
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          cat > release_notes.md << 'EOF'
+          ## NotchTerm ${{ github.ref_name }}
+
+          A drop-down terminal for macOS that elegantly emerges from the notch area.
+
+          ### Installation
+
+          1. Download `NotchTerm-VERSION.dmg` or `NotchTerm-VERSION.zip`
+          2. For DMG: Open the DMG and drag NotchTerm to Applications
+          3. For ZIP: Extract and move NotchTerm.app to Applications
+          4. Launch NotchTerm from Applications
+          5. Grant Accessibility permissions when prompted
+
+          ### Usage
+
+          - **Toggle terminal**: Press `Ctrl + \`` (backtick) or hover near the notch
+          - **Configuration**: Edit `~/.config/notchterm/config.json`
+
+          ### Requirements
+
+          - macOS 12.0 or later
+          - Mac with a notch (recommended) or any Mac
+
+          > **Note**: This release is not signed/notarized. On first launch, right-click the app and select "Open" to bypass Gatekeeper.
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NotchTerm ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            ${{ env.DMG_NAME }}
+            ${{ env.ZIP_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
