@@ -148,6 +148,9 @@ final class TerminalWindowController: NSWindowController {
             environment["HOME"] = NSHomeDirectory()
         }
 
+        // Set TERM for proper terminal support (fixes tmux "terminal does not support clear")
+        environment["TERM"] = "xterm-256color"
+
         // Ensure SSH_AUTH_SOCK is inherited if available
         // (already included from ProcessInfo.processInfo.environment)
 
