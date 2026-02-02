@@ -149,7 +149,10 @@ final class TerminalWindowController: NSWindowController {
         }
 
         // Set TERM for proper terminal support (fixes tmux "terminal does not support clear")
-        environment["TERM"] = "xterm-256color"
+        // Only set if not already defined to preserve user's TERM setting
+        if environment["TERM"] == nil {
+            environment["TERM"] = "xterm-256color"
+        }
 
         // Ensure SSH_AUTH_SOCK is inherited if available
         // (already included from ProcessInfo.processInfo.environment)
