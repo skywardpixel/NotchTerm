@@ -16,7 +16,8 @@ A dropdown terminal that lives in your MacBook's notch. Press a hotkey to summon
 ### Homebrew (recommended)
 
 ```bash
-brew install --cask skywardpixel/notchterm/notchterm
+brew tap skywardpixel/notchterm
+brew install --cask notchterm
 ```
 
 ### Download from Releases
