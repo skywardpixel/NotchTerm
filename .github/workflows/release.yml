@@ -81,6 +81,14 @@ jobs:
           </plist>
           EOF
 
+      - name: Code Sign App Bundle
+        run: |
+          # Ad-hoc sign the app to prevent "damaged" error on macOS
+          codesign --force --deep --sign - NotchTerm.app
+
+          # Verify the signature
+          codesign --verify --verbose NotchTerm.app
+
       - name: Create DMG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -110,6 +118,10 @@ jobs:
 
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
+          # Calculate SHA256 for Homebrew
+          SHA256=$(shasum -a 256 "$ZIP_NAME" | awk '{print $1}')
+          echo "SHA256=$SHA256" >> $GITHUB_ENV
+
       - name: Generate Release Notes
         id: release_notes
         run: |
@@ -138,7 +150,13 @@ jobs:
           - macOS 12.0 or later
           - Mac with a notch (recommended) or any Mac
 
-          > **Note**: This release is not signed/notarized. On first launch, right-click the app and select "Open" to bypass Gatekeeper.
+          > **Note**: This release is ad-hoc signed but not notarized. On first launch, right-click the app and select "Open" to bypass Gatekeeper. If you see "damaged" error, run: `xattr -cr /Applications/NotchTerm.app`
+
+          ### Homebrew Installation
+
+          \`\`\`bash
+          brew install --cask skywardpixel/notchterm/notchterm
+          \`\`\`
           EOF
 
       - name: Create Release
@@ -153,3 +171,39 @@ jobs:
             ${{ env.ZIP_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Cask
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Create Casks directory if it doesn't exist
+          mkdir -p Casks
+
+          # Create the cask formula
+          cat > Casks/notchterm.rb << EOF
+          cask "notchterm" do
+            version "${VERSION}"
+            sha256 "${SHA256}"
+
+            url "https://github.com/skywardpixel/NotchTerm/releases/download/v#{version}/NotchTerm-#{version}.zip"
+            name "NotchTerm"
+            desc "Drop-down terminal for macOS that emerges from the notch area"
+            homepage "https://github.com/skywardpixel/NotchTerm"
+
+            depends_on macos: ">= :monterey"
+
+            app "NotchTerm.app"
+
+            zap trash: [
+              "~/.config/notchterm",
+            ]
+          end
+          EOF
+
+          # Commit and push to main branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/notchterm.rb
+          git commit -m "Update Homebrew cask to ${VERSION}" || echo "No changes to commit"
+          git push origin HEAD:main

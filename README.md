@@ -13,6 +13,16 @@ A dropdown terminal that lives in your MacBook's notch. Press a hotkey to summon
 
 ## Installation
 
+### Homebrew (recommended)
+
+```bash
+brew install --cask skywardpixel/notchterm/notchterm
+```
+
+### Download from Releases
+
+Download the latest `.dmg` or `.zip` from the [Releases page](https://github.com/skywardpixel/NotchTerm/releases).
+
 ### Build from source
 
 Requires macOS 12+ and Xcode.
