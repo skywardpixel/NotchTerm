@@ -173,7 +173,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew Cask
-        if: ${{ !contains(github.ref_name, '-') }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
 
