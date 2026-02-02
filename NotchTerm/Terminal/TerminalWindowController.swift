@@ -140,13 +140,28 @@ final class TerminalWindowController: NSWindowController {
         // Check which tmux path exists
         let tmux = FileManager.default.fileExists(atPath: tmuxPath) ? tmuxPath : fallbackTmuxPath
 
-        // tmux new-session -A -s NotchTerm
+        // Build environment with essential variables
+        var environment = ProcessInfo.processInfo.environment
+
+        // Ensure HOME is set
+        if environment["HOME"] == nil {
+            environment["HOME"] = NSHomeDirectory()
+        }
+
+        // Ensure SSH_AUTH_SOCK is inherited if available
+        // (already included from ProcessInfo.processInfo.environment)
+
+        // Set working directory to HOME
+        let homeDirectory = environment["HOME"] ?? NSHomeDirectory()
+
+        // tmux new-session -A -s NotchTerm -c $HOME
         // -A: attach if session exists, otherwise create new
         // -s: session name
+        // -c: starting directory for new sessions
         terminalView.startProcess(
             executable: tmux,
-            args: ["new-session", "-A", "-s", sessionName],
-            environment: nil
+            args: ["new-session", "-A", "-s", sessionName, "-c", homeDirectory],
+            environment: Array(environment.map { "\($0.key)=\($0.value)" })
         )
         shellRunning = true
     }
